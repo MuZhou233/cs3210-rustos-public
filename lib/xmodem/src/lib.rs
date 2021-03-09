@@ -2,7 +2,7 @@
 
 #![feature(decl_macro)]
 
-use std::io::IntoInnerError;
+use std::io::{ErrorKind, IntoInnerError};
 
 use shim::io;
 use shim::ioerr;
@@ -205,12 +205,12 @@ impl<T: io::Read + io::Write> Xmodem<T> {
     /// of `ConnectionAborted` is returned. Otherwise, the error kind is
     /// `InvalidData`.
     fn expect_byte(&mut self, byte: u8, expected: &'static str) -> io::Result<u8> {
-        match self.read_byte(true) {
+        match self.read_byte(false) {
             Ok(read) if read == byte => Ok(byte),
-            Ok(read) if read != byte =>
-                ioerr!(InvalidData, "expected"),
-            Err(e) if byte == CAN => Ok(byte),
-            Err(e) if byte != CAN => Err(e)
+            Ok(read) if read == CAN => return ioerr!(ConnectionAborted, ""),
+            Ok(_) =>
+                ioerr!(InvalidData, expected),
+            Err(e) => Err(e)
         }
     }
 
@@ -238,7 +238,48 @@ impl<T: io::Read + io::Write> Xmodem<T> {
     ///
     /// An error of kind `UnexpectedEof` is returned if `buf.len() < 128`.
     pub fn read_packet(&mut self, buf: &mut [u8]) -> io::Result<usize> {
-        unimplemented!()
+        if buf.len() < 128 {
+            return ioerr!(UnexpectedEof, "buf size error");
+        }
+        if !self.started {
+            self.write_byte(NAK)?;
+            self.started = true;
+        }
+        match self.read_byte(true) {
+            Ok(byte) if byte == SOH => {
+                self.expect_byte_or_cancel(self.packet, "packet number")?;
+                self.expect_byte_or_cancel(255 - self.packet, "packet number 1s complete")?;
+
+                for i in 0..128 {
+                    buf[i] = self.read_byte(false)?;
+                }
+                match self.expect_byte(get_checksum(buf), "checksum") {
+                    Ok(_) => {
+                        self.write_byte(ACK)?;
+                        self.packet += 1;
+                        return Ok(128);
+                    },
+                    Err(_) => {
+                        self.write_byte(NAK)?;
+                        return ioerr!(Interrupted, "");
+                    }
+                }
+            },
+            Ok(byte) if byte == EOT => {
+                self.write_byte(NAK)?;
+                self.expect_byte_or_cancel(EOT, "");
+                self.write_byte(ACK)?;
+                return Ok(0);
+            },
+            Ok(_) => {
+                self.write_byte(CAN);
+                return ioerr!(InvalidData, "")
+            },
+            Err(e)  => {
+                self.write_byte(CAN)?;
+                return Err(e)
+            }
+        }
     }
 
     /// Sends (uploads) a single packet to the inner stream using the XMODEM
@@ -272,7 +313,40 @@ impl<T: io::Read + io::Write> Xmodem<T> {
     ///
     /// An error of kind `Interrupted` is returned if a packet checksum fails.
     pub fn write_packet(&mut self, buf: &[u8]) -> io::Result<usize> {
-        unimplemented!()
+        if buf.len() < 128 && buf.len() != 0 {
+            return ioerr!(UnexpectedEof, "buf lenth error");
+        }
+        if !self.started {
+            self.expect_byte_or_cancel(NAK, "")?;
+            self.started = true;
+        }
+        if buf.len() == 0 {
+            self.write_byte(EOT)?;
+            self.expect_byte(NAK, "")?;
+            self.write_byte(EOT)?;
+            self.expect_byte(ACK, "")?;
+            return Ok(0);
+        } else {
+            self.write_byte(SOH)?;
+            self.write_byte(self.packet)?;
+            self.write_byte(255-self.packet)?;
+            for i in 0..128 {
+                self.write_byte(buf[i])?;
+            }
+            self.write_byte(get_checksum(buf))?;
+            match self.read_byte(false) {
+                Ok(byte) if byte == NAK => return ioerr!(Interrupted, ""),
+                Ok(byte) if byte == ACK => {
+                    self.packet += 1;
+                    return Ok(128)
+                },
+                Ok(byte) if byte == CAN => {
+                    self.write_byte(CAN)?;
+                    return ioerr!(ConnectionAborted, "")
+                },
+                _ => return ioerr!(InvalidData, "")
+            }
+        }
     }
 
     /// Flush this output stream, ensuring that all intermediately buffered
