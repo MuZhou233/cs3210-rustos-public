@@ -244,6 +244,7 @@ impl<T: io::Read + io::Write> Xmodem<T> {
         if !self.started {
             self.write_byte(NAK)?;
             self.started = true;
+            (self.progress)(Progress::Started);
         }
         match self.read_byte(true) {
             Ok(byte) if byte == SOH => {
@@ -256,18 +257,19 @@ impl<T: io::Read + io::Write> Xmodem<T> {
                 match self.expect_byte(get_checksum(buf), "checksum") {
                     Ok(_) => {
                         self.write_byte(ACK)?;
+                        (self.progress)(Progress::Packet(self.packet));
                         self.packet += 1;
                         return Ok(128);
                     },
                     Err(_) => {
                         self.write_byte(NAK)?;
-                        return ioerr!(Interrupted, "");
+                        return ioerr!(Interrupted, "checksum failed");
                     }
                 }
             },
             Ok(byte) if byte == EOT => {
                 self.write_byte(NAK)?;
-                self.expect_byte_or_cancel(EOT, "");
+                self.expect_byte_or_cancel(EOT, "second EOT");
                 self.write_byte(ACK)?;
                 return Ok(0);
             },
@@ -317,8 +319,10 @@ impl<T: io::Read + io::Write> Xmodem<T> {
             return ioerr!(UnexpectedEof, "buf lenth error");
         }
         if !self.started {
+            (self.progress)(Progress::Waiting);
             self.expect_byte_or_cancel(NAK, "")?;
             self.started = true;
+            (self.progress)(Progress::Started);
         }
         if buf.len() == 0 {
             self.write_byte(EOT)?;
@@ -337,6 +341,7 @@ impl<T: io::Read + io::Write> Xmodem<T> {
             match self.read_byte(false) {
                 Ok(byte) if byte == NAK => return ioerr!(Interrupted, ""),
                 Ok(byte) if byte == ACK => {
+                    (self.progress)(Progress::Packet(self.packet));
                     self.packet += 1;
                     return Ok(128)
                 },
