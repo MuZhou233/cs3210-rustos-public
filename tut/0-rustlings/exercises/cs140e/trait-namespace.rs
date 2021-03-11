@@ -1,17 +1,17 @@
-// FIXME: Make me compile! Diff budget: 2 lines.
-
-// I AM NOT DONE
+// FIXME: Make me compile! Diff budget: 1 line.
 
 // Do not change this module.
 mod a {
     pub trait MyTrait {
-        fn foo(&self) {  }
+        fn foo(&self) {}
     }
 
     pub struct MyType;
 
-    impl MyTrait for MyType {  }
+    impl MyTrait for MyType {}
 }
+
+use a::MyTrait;
 
 // Do not modify this function.
 fn main() {

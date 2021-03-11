@@ -18,7 +18,6 @@ impl Default for Person {
     }
 }
 
-// I AM NOT DONE
 // Your task is to complete this implementation
 // in order for the line `let p = Person::from("Mark,20")` to compile
 // Please note that you'll need to parse the age component into a `usize`
@@ -26,14 +25,23 @@ impl Default for Person {
 // be handled appropriately.
 //
 // Steps:
-// 1. If the length of the provided string is 0, then return the default of Person
-// 2. Split the given string on the commas present in it
-// 3. Extract the first element from the split operation and use it as the name
-// 4. Extract the other element from the split operation and parse it into a `usize` as the age
-// If while parsing the age, something goes wrong, then return the default of Person
-// Otherwise, then return an instantiated Person onject with the results
+// 1. Split the given string on the commas present in it
+// 2. Extract the first element from the split operation and use it as the name
+// 3. Extract the other element from the split operation and parse it into a `usize` as the age
+// If something goes wrong, for instance there is no comma in the provided string or
+// parsing the age fails, then return the default of Person
+// Otherwise, return an instantiated Person onject with the results
 impl From<&str> for Person {
     fn from(s: &str) -> Person {
+        let s: Vec<&str> = s.split(',').collect();
+        if s.len() == 2 {
+            Person{
+                name: s[0].to_string(), 
+                age: s[1].to_string().parse().unwrap()
+            }
+        } else {
+            Person::default()
+        }
     }
 }
 
@@ -60,6 +68,10 @@ mod tests {
     fn test_bad_convert() {
         // Test that John is returned when bad string is provided
         let p = Person::from("");
+        assert_eq!(p.name, "John");
+        assert_eq!(p.age, 30);
+
+        let p = Person::from("Jack");
         assert_eq!(p.name, "John");
         assert_eq!(p.age, 30);
     }

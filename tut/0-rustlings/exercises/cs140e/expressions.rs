@@ -1,11 +1,18 @@
 // FIXME: Make me pass! Diff budget: 10 lines.
 // Do not `use` any items.
 
-// I AM NOT DONE
-
 // Do not change the following two lines.
 #[derive(Debug, PartialOrd, PartialEq, Clone, Copy)]
 struct IntWrapper(isize);
+
+// Implement a generic function here
+fn max<T>(l: T, r: T) -> T where T:PartialOrd{
+    if l < r {
+        r
+    } else {
+        l
+    }
+}
 
 #[test]
 fn expressions() {
