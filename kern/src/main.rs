@@ -3,7 +3,7 @@
 #![feature(decl_macro)]
 #![feature(asm)]
 #![feature(global_asm)]
-#![feature(optin_builtin_traits)]
+#![feature(negative_impls)]
 #![cfg_attr(not(test), no_std)]
 #![cfg_attr(not(test), no_main)]
 

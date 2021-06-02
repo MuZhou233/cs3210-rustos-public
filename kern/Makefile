@@ -2,7 +2,7 @@ ROOT := $(shell git rev-parse --show-toplevel)
 
 KERN := kernel
 TARGET := target/aarch64-unknown-none/release/${KERN}
-OBJCPY := cargo objcopy -- --strip-all -O binary
+OBJCPY := cargo objcopy --target aarch64-unknown-none -- --strip-all -O binary
 TTY_PATH := /dev/ttyUSB0
 
 .PHONY: all build qemu transmit objdump nm check clean install test
@@ -16,7 +16,7 @@ build:
 	@cp -f $(TARGET) build/$(KERN).elf
 
 	@echo "+ Building build/$(KERN).bin [objcopy]"
-	@$(OBJCPY) $(TARGET) build/$(KERN).bin
+	@$(OBJCPY) build/$(KERN).bin
 
 check:
 	@cargo xcheck
@@ -29,7 +29,7 @@ transmit: build
 	ttywrite -i build/$(KERN).bin $(TTY_PATH)
 
 objdump: build
-	cargo objdump -- -disassemble -no-show-raw-insn -print-imm-hex build/$(KERN).elf
+	cargo objdump -- --disassemble --no-show-raw-insn --print-imm-hex build/$(KERN).elf
 
 nm: build
 	cargo nm build/$(KERN).elf
